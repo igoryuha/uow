@@ -1,6 +1,6 @@
 from typing import cast
 
-from sqlalchemy import Connection, create_engine, Table, Column, Integer, String, MetaData, ForeignKey, select, CursorResult, case
+from sqlalchemy import Connection, create_engine, Table, Column, Integer, String, MetaData, ForeignKey, select, CursorResult, bindparam
 
 
 engine = create_engine("sqlite://")
@@ -130,24 +130,21 @@ class UserMapper:
         self._connection = connection
     
     def update_all(self, users: list[User]):
-        identifiers = []
-        name_data = {}
+        params = []
 
         for user in users:
-            identifiers.append(user.user_id)
-            name_data[user.user_id] = user.name
+            params.append({
+                'name': user.name,
+                'user_id': user.user_id,
+            })
 
         stmt = (
             user_table.update()
-            .values({
-                'name': case(name_data, value=user_table.c.id)
-            })
-            .where(
-                user_table.c.id.in_(identifiers)
-            )
+            .values(name=bindparam('name'))
+            .where(user_table.c.id==bindparam('user_id'))
         )
 
-        self._connection.execute(stmt)
+        self._connection.execute(stmt, params)
     
     def add(self, user: User) -> None:
         pass
@@ -182,24 +179,21 @@ class MessageMapper:
         self._connection.execute(stmt)
     
     def update_all(self, messages: list[Message]) -> None:
-        identifiers = []
-        body_data = {}
+        params = []
 
         for message in messages:
-            identifiers.append(message.message_id)
-            body_data[message.message_id] = message.body
+            params.append({
+                'body': message.body,
+                'message_id': message.message_id,
+            })
 
         stmt = (
             message_table.update()
-            .values({
-                'body': case(body_data, value=message_table.c.id)
-            })
-            .where(
-                message_table.c.id.in_(identifiers)
-            )
+            .values(body=bindparam('body'))
+            .where(message_table.c.id==bindparam('message_id'))
         )
 
-        self._connection.execute(stmt)
+        self._connection.execute(stmt, params)
 
     def add(self, message: Message) -> None:
         pass
