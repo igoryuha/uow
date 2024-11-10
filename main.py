@@ -91,11 +91,11 @@ class Registry:
     def __init__(self):
         self._mappers = {}
 
-    def register_mapper(self, mapper_type, mapper):
-        self._mappers[mapper_type] = mapper
+    def add_entity(self, entity_type, mapper):
+        self._mappers[entity_type] = mapper
 
-    def get(self, mapper_type):
-        mapper = self._mappers.get(mapper_type)
+    def get(self, enity_type):
+        mapper = self._mappers.get(enity_type)
         if not mapper:
             raise Exception('Mapper not found')
         return mapper
@@ -110,15 +110,15 @@ class UnitOfWork:
         self._registry = registry
         self._connection = connection
 
-    def register_new(self, *, mapper, entity):
-        self._new.setdefault(mapper, []).append(entity)
+    def register_new(self, entity):
+        self._new.setdefault(type(entity), []).append(entity)
 
-    def register_dirty(self, *, mapper, entity):
-        self._dirty.setdefault(mapper, []).append(entity)
+    def register_dirty(self, entity):
+        self._dirty.setdefault(type(entity), []).append(entity)
 
     def commit(self):
-        for mapper_type, data in self._dirty.items():
-            mapper = self._registry.get(mapper_type)
+        for enity_type, data in self._dirty.items():
+            mapper = self._registry.get(enity_type)
             mapper.update_all(data)
 
         self._connection.commit()
@@ -223,9 +223,7 @@ class MessageProxy:
         return self._message.body
 
     def edit(self, body: str) -> None:
-        self._unit_of_work.register_dirty(
-            mapper=MessageMapper, entity=self._message,
-        )
+        self._unit_of_work.register_dirty(self._message)
         return self._message.edit(
             body=body,
         )
@@ -246,9 +244,7 @@ class UserProxy:
         return self._user.name
 
     def rename(self, new_name: str) -> None:
-        self._unit_of_work.register_dirty(
-            mapper=UserMapper, entity=self._user,
-        )
+        self._unit_of_work.register_dirty(self._user)
         return self._user.rename(
             new_name=new_name,
         )
@@ -340,8 +336,11 @@ class Interactor:
 with engine.connect() as connection:
     registry = Registry()
 
-    registry.register_mapper(MessageMapper, MessageMapper(connection))
-    registry.register_mapper(UserMapper, UserMapper(connection))
+    message_mapper = MessageMapper(connection)
+    user_mapper = UserMapper(connection)
+
+    registry.add_entity(Message, message_mapper)
+    registry.add_entity(User, user_mapper)
 
     unit_of_work = UnitOfWork(
         registry=registry,
