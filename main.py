@@ -271,29 +271,33 @@ class UserRepository:
         self._connection = connection
         self._unit_of_work = unit_of_work
 
-    def _load(self, result: CursorResult) -> User:
+    def _load(self, result: CursorResult) -> User | None:
         proxy_messages = []
 
         for row in result:
-            message = Message(
-                    message_id=row.message_id,
-                    body=row.message_body,
-                )
-            message_proxy = MessageProxy(
-                    message=message,
-                    unit_of_work=self._unit_of_work,
-                )
-            proxy_messages.append(message_proxy)
+            if row.message_id:
+                message = Message(
+                        message_id=row.message_id,
+                        body=row.message_body,
+                    )
+                message_proxy = MessageProxy(
+                        message=message,
+                        unit_of_work=self._unit_of_work,
+                    )
+                proxy_messages.append(message_proxy)
         
         messages = cast(
                 list[Message], proxy_messages,
             )
 
-        user = User(
-            user_id=row.user_id,
-            name=row.user_name,
-            messages=messages
-        )
+        try:
+            user = User(
+                user_id=row.user_id,
+                name=row.user_name,
+                messages=messages
+            )
+        except NameError:
+            return None
 
         user_proxy = UserProxy(
             user=user, 
@@ -304,7 +308,7 @@ class UserRepository:
             User, user_proxy
         )
 
-    def with_id(self, user_id: int) -> User:
+    def with_id(self, user_id: int) -> User | None:
         stmt = (
             select(
                 user_table.c.id.label('user_id'),
@@ -312,7 +316,7 @@ class UserRepository:
                 message_table.c.id.label('message_id'),
                 message_table.c.body.label('message_body'),
             )
-            .join(message_table)
+            .join(message_table, isouter=True)
             .where(user_table.c.id == user_id)
         )
         result = self._connection.execute(
@@ -333,6 +337,8 @@ class Interactor:
 
     def execute(self):
         user = user_repository.with_id(1)
+        if not user:
+            raise RuntimeError
 
         user.edit_message(1, 'new message body 1')
         user.edit_message(2, 'new message body 2')
