@@ -90,14 +90,23 @@ class Registry:
     
     def __init__(self):
         self._mappers = {}
+        self._keys = {
+            User: UserMapper,
+            Message: MessageMapper,
+        }
 
-    def add_entity(self, entity_type, mapper):
-        self._mappers[entity_type] = mapper
+    def add_mapper(self, mapper):
+        self._mappers[type(mapper)] = mapper
 
-    def get(self, enity_type):
-        mapper = self._mappers.get(enity_type)
-        if not mapper:
-            raise Exception('Mapper not found')
+    def get(self, entity_type):
+        try:
+            key = self._keys[entity_type]
+        except KeyError as e:
+            raise Exception('The mapper for this entity is not registered') from e
+        try:
+            mapper = self._mappers[key]
+        except KeyError as e:
+            raise Exception('The mapper is not initialized') from e
         return mapper
 
 
@@ -339,8 +348,8 @@ with engine.connect() as connection:
     message_mapper = MessageMapper(connection)
     user_mapper = UserMapper(connection)
 
-    registry.add_entity(Message, message_mapper)
-    registry.add_entity(User, user_mapper)
+    registry.add_mapper(message_mapper)
+    registry.add_mapper(user_mapper)
 
     unit_of_work = UnitOfWork(
         registry=registry,
