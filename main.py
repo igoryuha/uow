@@ -345,7 +345,7 @@ class Interactor:
 
         user.rename('new username')
 
-        unit_of_work.commit()
+        self._unit_of_work.commit()
 
 
 with engine.connect() as connection:
